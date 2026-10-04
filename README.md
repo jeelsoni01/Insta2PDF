@@ -1,41 +1,36 @@
 # Insta2PDF
 
-## Overview
+> Save any public Instagram carousel as a PDF. In the browser. No server. No Python. No nonsense.
 
-Insta2PDF is a Manifest V3 browser extension for Chrome and Edge that saves any
-public Instagram image carousel as a PDF — directly in the browser, with no
-server, no Python, and no command line.
+![Insta2PDF Demo](demo.gif)
 
-Click the extension on any carousel post. It rewinds to slide 1 automatically
-(so deep-linked URLs like `?img_index=16` never produce a partial PDF), clicks
-through every slide to collect the full-resolution images, builds the PDF in
-memory, and hands it to your browser's Save As dialog. The whole process takes a
-few seconds and leaves nothing running in the background.
+---
 
-Not for: video reels, Stories, or private accounts. It works on publicly visible
-image carousels only.
+## What it does
+
+You open an Instagram carousel post. You click the extension. You get a PDF.
+
+That's it.
+
+Insta2PDF rewinds the carousel to slide 1 automatically — so deep-linked URLs like `?img_index=16` never give you a partial export — steps through every slide, pulls the full-resolution images, and hands you a PDF through the browser's Save As dialog. The whole thing takes a few seconds and leaves nothing running in the background.
+
+**Doesn't work on:** video reels, Stories, or private accounts. Publicly visible image carousels only.
+
+---
 
 ## Demo
 
-<!-- Record a GIF using ScreenToGif or ShareX, save it as demo.gif in the repo root, then this will autoplay on GitHub -->
-![Insta2PDF Demo](demo.gif)
+The GIF above shows the full flow — open a carousel, click Convert, get a PDF.
 
-## Requirements
+---
 
-| Requirement | Version | Notes |
-|---|---|---|
-| Chrome or Edge | Any current release | Manifest V3 support required |
-| Developer Mode | Enabled in the extensions page | Required for unpacked install |
+## Install
 
-No Node, Python, or build step. The extension is plain JavaScript and runs
-entirely in the browser.
+No build step. No Node. No Python. Just load it.
 
-## Installation
+1. Clone or download this repo so the `extension` folder is on your disk.
 
-1. Download or extract the project so the `extension` folder is on disk.
-
-2. Open the extensions page in your browser.
-
+2. Open your browser's extensions page:
    ```
    chrome://extensions/
    ```
@@ -43,56 +38,71 @@ entirely in the browser.
    edge://extensions/
    ```
 
-3. Enable **Developer mode** (toggle in the top-right corner).
+3. Enable **Developer mode** (top-right toggle).
 
-4. Click **Load unpacked** and select the `extension` folder.
+4. Click **Load unpacked** → select the `extension` folder.
 
-5. Pin the extension to the toolbar for quick access.
+5. Pin it to your toolbar so it's always one click away.
 
-If you have an older version installed, disable or remove it before loading this
-one — two versions loaded at the same time will conflict.
+> If you have an older version installed, remove it first — two versions loaded at the same time will conflict.
+
+---
 
 ## Usage
 
-1. Open any public Instagram post that contains multiple images (a carousel).
+1. Open any public Instagram carousel post (multiple images).
+2. Click the **Insta2PDF** icon in your toolbar.
+3. Hit **Convert current post to PDF**.
 
-2. Click the **Insta2PDF** button in the toolbar.
+You'll see the status update as it works:
+```
+Found 8 slide(s). Creating PDF…
+Done — 8 slides saved.
+```
 
-3. Click **Convert current post to PDF** in the popup.
+The file saves as the post's shortcode (e.g. `C1aBcDeFgHi.pdf`).
 
-   Insta2PDF rewinds the carousel to slide 1, steps through every slide,
-   downloads each image, assembles them into a single PDF, and opens a Save As
-   dialog.
+---
 
-   ```
-   Found 8 slide(s). Creating PDF…
-   Done — 8 slides saved.
-   ```
+## Requirements
 
-4. Choose a save location. The file is named after the post's shortcode (e.g.
-   `C1aBcDeFgHi.pdf`).
+| | |
+|---|---|
+| Browser | Chrome or Edge (any current release) |
+| Developer Mode | Must be enabled in the extensions page |
+
+---
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| "Open the Instagram carousel first." | The active tab is not on instagram.com | Navigate to the post, then click the extension |
-| "No slides found." | Page not fully loaded, or unrecognised carousel layout | Scroll the post into view, wait for images to load, then retry |
+| "Open the Instagram carousel first." | Active tab isn't on instagram.com | Navigate to the post, then click the extension |
+| "No slides found." | Page not fully loaded or layout changed | Scroll the post into view, wait, then retry |
 | "Could not download slide N (403)." | CDN URL expired between collection and download | Click Convert again immediately after opening the post |
-| PDF starts at a slide other than slide 1 | `?img_index=N` deep link and rewind didn't complete | Reload the page and retry |
+| PDF starts mid-carousel | Deep link + rewind didn't complete in time | Reload the page and retry |
+
+---
 
 ## Contributing
 
-Contributions are welcome from everyone! Whether it's a bug fix, new feature, improved docs, or a suggestion — feel free to open an issue or submit a pull request.
+All contributions are welcome — bug fixes, new features, better docs, or just ideas. If you spot something broken or have something to add, open an issue or send a PR. No gatekeeping here.
 
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature/your-feature-name`)
-3. Make your changes
-4. Commit and push (`git commit -m "Add your feature"` then `git push`)
-5. Open a Pull Request
+```
+# Fork → branch → change → push → PR
+git checkout -b feature/your-idea
+git commit -m "Add your idea"
+git push origin feature/your-idea
+```
 
-No formal requirements — just keep the extension working in Manifest V3 and test your changes in Chrome or Edge before submitting.
+Only ask: keep it working in Manifest V3, test in Chrome or Edge before submitting.
+
+---
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+<p align="center">Built by <a href="https://github.com/jeelsoni01">Jeel Nandha</a></p>
