@@ -15,6 +15,11 @@ few seconds and leaves nothing running in the background.
 Not for: video reels, Stories, or private accounts. It works on publicly visible
 image carousels only.
 
+## Demo
+
+<!-- Record a GIF using ScreenToGif or ShareX, save it as demo.gif in the repo root, then this will autoplay on GitHub -->
+![Insta2PDF Demo](demo.gif)
+
 ## Requirements
 
 | Requirement | Version | Notes |
@@ -75,6 +80,18 @@ one — two versions loaded at the same time will conflict.
 | "No slides found." | Page not fully loaded, or unrecognised carousel layout | Scroll the post into view, wait for images to load, then retry |
 | "Could not download slide N (403)." | CDN URL expired between collection and download | Click Convert again immediately after opening the post |
 | PDF starts at a slide other than slide 1 | `?img_index=N` deep link and rewind didn't complete | Reload the page and retry |
+
+## Contributing
+
+Contributions are welcome from everyone! Whether it's a bug fix, new feature, improved docs, or a suggestion — feel free to open an issue or submit a pull request.
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/your-feature-name`)
+3. Make your changes
+4. Commit and push (`git commit -m "Add your feature"` then `git push`)
+5. Open a Pull Request
+
+No formal requirements — just keep the extension working in Manifest V3 and test your changes in Chrome or Edge before submitting.
 
 ## License
 
