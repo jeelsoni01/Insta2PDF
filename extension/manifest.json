@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Insta Carousel to PDF",
+  "version": "5.0.0",
+  "description": "Convert a public Instagram carousel into a PDF directly in the browser.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://www.instagram.com/*",
+    "https://*.instagram.com/*",
+    "https://*.cdninstagram.com/*",
+    "https://*.fbcdn.net/*"
+  ],
+  "action": {
+    "default_title": "Instagram \u2192 PDF",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
