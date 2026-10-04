@@ -15,36 +15,129 @@ go.onclick=async()=>{
       target:{tabId:tab.id},
       func: async function() {
         const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-        const getImages=()=>[...document.images].filter(img=>{
-          const r=img.getBoundingClientRect();
-          return r.width>=300&&r.height>=200&&r.bottom>0&&r.right>0&&img.complete&&img.naturalWidth>=500&&
-                 getComputedStyle(img).display!=="none"&&getComputedStyle(img).visibility!=="hidden";
-        });
-        const best=()=>{const a=getImages();a.sort((x,y)=>{const rx=x.getBoundingClientRect(),ry=y.getBoundingClientRect();return ry.width*ry.height-rx.width*rx.height});return a[0]||null};
-        const buttons=()=>[...document.querySelectorAll('button,[role="button"]')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.right>0});
-        const find=(dir)=>{
-          const words=dir==="prev"?["previous","prev","back","zurück","précédent","anterior"]:["next","suivant","siguiente","nächste","avanti"];
-          return buttons().find(e=>{const t=((e.getAttribute("aria-label")||"")+" "+(e.getAttribute("title")||"")+" "+(e.innerText||"")).toLowerCase();return words.some(w=>t.includes(w))})||null;
+
+        // Find the main article element containing the carousel
+        const getArticle=()=>{
+          // Instagram posts live inside <article> tags
+          const articles=[...document.querySelectorAll('article')];
+          // Pick the one closest to center of viewport (the active post)
+          const cx=window.innerWidth/2, cy=window.innerHeight/2;
+          let best=null, bestDist=Infinity;
+          for(const a of articles){
+            const r=a.getBoundingClientRect();
+            if(r.width===0||r.height===0)continue;
+            const dist=Math.hypot(r.left+r.width/2-cx, r.top+r.height/2-cy);
+            if(dist<bestDist){bestDist=dist;best=a;}
+          }
+          return best;
         };
-        let im=null; for(let i=0;i<30;i++){im=best();if(im)break;await sleep(250)}
+
+        // Get the best carousel image — must be inside the article, large, and loaded
+        const getCarouselImage=(article)=>{
+          if(!article)return null;
+          const imgs=[...article.querySelectorAll('img')].filter(img=>{
+            const r=img.getBoundingClientRect();
+            return r.width>=200 && r.height>=200 &&
+                   img.complete && img.naturalWidth>=300 &&
+                   getComputedStyle(img).display!=="none" &&
+                   getComputedStyle(img).visibility!=="hidden" &&
+                   // exclude avatars / thumbnails in the header area
+                   r.top > 40;
+          });
+          // pick the largest
+          imgs.sort((x,y)=>{
+            const rx=x.getBoundingClientRect(), ry=y.getBoundingClientRect();
+            return ry.width*ry.height - rx.width*rx.height;
+          });
+          return imgs[0]||null;
+        };
+
+        // Find prev/next buttons scoped inside the article to avoid hitting page-level buttons
+        const findBtn=(article, dir)=>{
+          if(!article)return null;
+          const scope=article;
+          const words=dir==="prev"
+            ?["previous","prev","back","zurück","précédent","anterior","left"]
+            :["next","suivant","siguiente","nächste","avanti","right"];
+          const candidates=[...scope.querySelectorAll('button,[role="button"]')].filter(e=>{
+            const r=e.getBoundingClientRect();
+            return r.width>0 && r.height>0;
+          });
+          return candidates.find(e=>{
+            const t=((e.getAttribute("aria-label")||"")+" "+(e.getAttribute("title")||"")+" "+(e.innerText||"")).toLowerCase();
+            return words.some(w=>t.includes(w));
+          })||null;
+        };
+
+        // Wait for article to appear
+        let article=null;
+        for(let i=0;i<40;i++){article=getArticle();if(article)break;await sleep(250);}
+        if(!article)throw new Error("Could not find the post on this page.");
+
+        // Scroll article into view so buttons appear
+        article.scrollIntoView({behavior:"instant",block:"center"});
+        await sleep(400);
+
+        // Wait for the main carousel image
+        let im=null;
+        for(let i=0;i<40;i++){im=getCarouselImage(article);if(im)break;await sleep(250);}
         if(!im)throw new Error("No carousel image found.");
-        // rewind
+
+        // Rewind to slide 1
         for(let i=0;i<60;i++){
-          const before=best()?.currentSrc||"", b=find("prev"); if(!b)break;
-          b.click(); let changed=false;
-          for(let j=0;j<12;j++){await sleep(180);const now=best()?.currentSrc||"";if(now&&now!==before){changed=true;break}}
-          if(!changed)break;
-        }
-        const urls=[],seen=new Set();
-        for(let i=0;i<100;i++){
-          await sleep(300); const cur=best()?.currentSrc||"";
-          if(cur&&!seen.has(cur)){seen.add(cur);urls.push(cur)}
-          const n=find("next"); if(!n)break; const before=cur; n.click();
+          const b=findBtn(article,"prev");
+          if(!b)break;
+          const before=getCarouselImage(article)?.currentSrc||"";
+          b.click();
           let changed=false;
-          for(let j=0;j<16;j++){await sleep(180);const now=best()?.currentSrc||"";if(now&&now!==before){changed=true;break}}
+          for(let j=0;j<20;j++){
+            await sleep(150);
+            const now=getCarouselImage(article)?.currentSrc||"";
+            if(now && now!==before){changed=true;break;}
+          }
           if(!changed)break;
-          if(urls.length>1&&(best()?.currentSrc||"")===urls[0])break;
         }
+
+        await sleep(400);
+
+        // Collect all slide URLs by stepping forward
+        const urls=[];
+        const seen=new Set();
+
+        // Capture slide 1
+        const first=getCarouselImage(article)?.currentSrc||"";
+        if(first){seen.add(first);urls.push(first);}
+
+        // Step through remaining slides
+        for(let i=0;i<100;i++){
+          const nextBtn=findBtn(article,"next");
+          if(!nextBtn)break; // no more slides
+
+          const before=getCarouselImage(article)?.currentSrc||"";
+          nextBtn.click();
+
+          // Wait for image to actually change
+          let changed=false;
+          for(let j=0;j<25;j++){
+            await sleep(160);
+            const now=getCarouselImage(article)?.currentSrc||"";
+            if(now && now!==before){changed=true;break;}
+          }
+          if(!changed)break;
+
+          await sleep(100);
+          const cur=getCarouselImage(article)?.currentSrc||"";
+          if(cur && !seen.has(cur)){
+            seen.add(cur);
+            urls.push(cur);
+          }
+
+          // If we've looped back to slide 1 it means we've gone past the end
+          if(cur && urls.length>1 && cur===urls[0])break;
+        }
+
+        if(!urls.length)throw new Error("No slides found.");
+
         const shortcode=(location.pathname.match(/\/(?:p|reel|tv)\/([^/]+)/i)||[])[1]||"instagram-carousel";
         return {urls,shortcode};
       }
