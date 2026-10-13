@@ -1,5 +1,16 @@
+// ── Image format detection ────────────────────────────────────────────────────
+function detectFormat(b){
+  if(b[0]===0xFF&&b[1]===0xD8)                          return "jpeg";
+  if(b[0]===0x89&&b[1]===0x50&&b[2]===0x4E&&b[3]===0x47) return "png";
+  if(b[0]===0x52&&b[1]===0x49&&b[2]===0x46&&b[3]===0x46&&
+     b[8]===0x57&&b[9]===0x45&&b[10]===0x42&&b[11]===0x50) return "webp";
+  if(b[0]===0x47&&b[1]===0x49&&b[2]===0x46)             return "gif";
+  return "unknown";
+}
+
+// ── JPEG dimension parser (used only for native JPEGs) ───────────────────────
 function jpegSize(b){
-  if(b[0]!==255||b[1]!==216)throw new Error("Instagram returned a non-JPEG image.");
+  if(b[0]!==255||b[1]!==216)throw new Error("Not a JPEG.");
   let i=2;
   while(i<b.length-9){
     if(b[i]!==255){i++;continue}
@@ -11,11 +22,34 @@ function jpegSize(b){
       return {height:(b[i+3]<<8)|b[i+4],width:(b[i+5]<<8)|b[i+6]};
     i+=len;
   }
-  throw new Error("Could not read image dimensions.");
+  throw new Error("Could not read JPEG dimensions.");
 }
-function a(s){return new TextEncoder().encode(s)}
-function cat(...aa){let n=aa.reduce((x,y)=>x+y.length,0),o=new Uint8Array(n),p=0;for(const x of aa){o.set(x,p);p+=x.length}return o}
 
+// ── Convert any image format → JPEG bytes via OffscreenCanvas ────────────────
+// Works for WebP, PNG, GIF, and anything the browser can decode.
+// Returns {b: Uint8Array (JPEG), w: number, h: number}
+async function toJpeg(rawBytes, mimeHint){
+  const blob=new Blob([rawBytes],{type: mimeHint||"image/jpeg"});
+  const bitmap=await createImageBitmap(blob);
+  const {width:w, height:h}=bitmap;
+  const canvas=new OffscreenCanvas(w,h);
+  const ctx=canvas.getContext("2d");
+  ctx.drawImage(bitmap,0,0);
+  bitmap.close();
+  const outBlob=await canvas.convertToBlob({type:"image/jpeg",quality:0.96});
+  const buf=await outBlob.arrayBuffer();
+  return {b:new Uint8Array(buf),w,h};
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function a(s){return new TextEncoder().encode(s)}
+function cat(...aa){
+  let n=aa.reduce((x,y)=>x+y.length,0),o=new Uint8Array(n),p=0;
+  for(const x of aa){o.set(x,p);p+=x.length}
+  return o;
+}
+
+// ── PDF builder (JPEG-only pipeline — unchanged) ──────────────────────────────
 function makePdf(imgs){
   const objs=[];let next=3,kids=[];
   for(let i=0;i<imgs.length;i++){
@@ -25,7 +59,12 @@ function makePdf(imgs){
     objs.push({t:"content",n:co,w:imgs[i].w,h:imgs[i].h,i});
   }
   const chunks=[a("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n")],off=new Map();let pos=chunks[0].length;
-  const add=(n,d)=>{off.set(n,pos);const h=a(`${n} 0 obj\n`),t=a("\nendobj\n");chunks.push(h,d,t);pos+=h.length+d.length+t.length};
+  const add=(n,d)=>{
+    off.set(n,pos);
+    const h=a(`${n} 0 obj\n`),t=a("\nendobj\n");
+    chunks.push(h,d,t);
+    pos+=h.length+d.length+t.length;
+  };
   add(1,a("<< /Type /Catalog /Pages 2 0 R >>"));
   add(2,a(`<< /Type /Pages /Kids [${kids.map(x=>x+" 0 R").join(" ")}] /Count ${kids.length} >>`));
   for(const o of objs){
@@ -40,32 +79,66 @@ function makePdf(imgs){
       add(o.n,a(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w} ${h}] /Resources << /XObject << /Im${o.i+1} ${o.im} 0 R >> >> /Contents ${o.co} 0 R >>`));
     }
   }
-  const start=pos;let x=`xref\n0 ${next}\n0000000000 65535 f \n`;
-  for(let i=1;i<next;i++)x+=String(off.get(i)).padStart(10,"0")+" 00000 n \n";
-  x+=`trailer\n<< /Size ${next} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`;chunks.push(a(x));
+  const start=pos;
+  let x=`xref\n0 ${next}\n0000000000 65535 f \n`;
+  for(let i=1;i<next;i++) x+=String(off.get(i)).padStart(10,"0")+" 00000 n \n";
+  x+=`trailer\n<< /Size ${next} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`;
+  chunks.push(a(x));
   return cat(...chunks);
 }
+
+// ── Fetch + normalise all slides to JPEG ─────────────────────────────────────
+// JPEG → kept as-is (fast, no re-encode)
+// WebP / PNG / anything else → converted to JPEG via OffscreenCanvas
 async function fetchAll(urls){
   const out=[];
   for(let i=0;i<urls.length;i++){
     const r=await fetch(urls[i],{credentials:"include",cache:"no-store"});
-    if(!r.ok)throw new Error(`Could not download slide ${i+1} (${r.status}).`);
+    if(!r.ok) throw new Error(`Could not download slide ${i+1} (${r.status}).`);
     const b=new Uint8Array(await r.arrayBuffer());
-    const s=jpegSize(b);out.push({b,w:s.width,h:s.height});
+    const fmt=detectFormat(b);
+
+    if(fmt==="jpeg"){
+      // Native JPEG — use directly, no re-encode
+      const s=jpegSize(b);
+      out.push({b, w:s.width, h:s.height});
+    } else {
+      // WebP, PNG, GIF, or unknown — convert to JPEG via OffscreenCanvas
+      const mimeMap={png:"image/png",webp:"image/webp",gif:"image/gif",unknown:"image/jpeg"};
+      const jpeg=await toJpeg(b, mimeMap[fmt]||"image/jpeg");
+      out.push(jpeg);
+    }
   }
   return out;
 }
+
+// ── Base64 data URL helper ────────────────────────────────────────────────────
 function dataUrl(b){
-  let s="",c=0x8000;for(let i=0;i<b.length;i+=c)s+=String.fromCharCode(...b.subarray(i,Math.min(i+c,b.length)));
+  let s="",c=0x8000;
+  for(let i=0;i<b.length;i+=c)
+    s+=String.fromCharCode(...b.subarray(i,Math.min(i+c,b.length)));
   return "data:application/pdf;base64,"+btoa(s);
 }
+
+// ── Message listener (unchanged interface) ────────────────────────────────────
 chrome.runtime.onMessage.addListener((m,s,reply)=>{
   if(m.action!=="buildPdf")return;
-  (async()=>{try{
-    const urls=[...new Set(m.urls||[])]; if(!urls.length)throw new Error("No slides.");
-    const imgs=await fetchAll(urls);const pdf=makePdf(imgs);
-    await chrome.downloads.download({url:dataUrl(pdf),filename:`${m.shortcode||"instagram-carousel"}.pdf`,saveAs:true,conflictAction:"uniquify"});
-    reply({ok:true});
-  }catch(e){reply({ok:false,error:e?.message||String(e)})}})();
+  (async()=>{
+    try{
+      const urls=[...new Set(m.urls||[])];
+      if(!urls.length) throw new Error("No slides.");
+      const imgs=await fetchAll(urls);
+      const pdf=makePdf(imgs);
+      await chrome.downloads.download({
+        url:dataUrl(pdf),
+        filename:`${m.shortcode||"instagram-carousel"}.pdf`,
+        saveAs:true,
+        conflictAction:"uniquify"
+      });
+      reply({ok:true});
+    }catch(e){
+      reply({ok:false,error:e?.message||String(e)});
+    }
+  })();
   return true;
 });
