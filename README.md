@@ -99,6 +99,12 @@ Only ask: keep it working in Manifest V3, test in Chrome or Edge before submitti
 
 ---
 
+## 🚀 Off Campus by GrowthX
+
+This project is built and maintained by [Jeel Nandha](https://github.com/jeelsoni01).
+
+**Off Campus Code:** `AZDJKQ`
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
